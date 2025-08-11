@@ -1,0 +1,73 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grafana-dashboard-config
+  labels:
+    grafana_dashboard: "1"
+data:
+  backend-dashboard.json: |
+    {
+  "annotations": { "list": [] },
+  "title": "Backend App Metrics",
+  "panels": [
+    {
+      "type": "graph",
+      "title": "HTTP Requests - /data",
+      "targets": [
+        {
+          "expr": "sum by (method, status_code) (rate(http_requests_total{path=\\"/data\\"}[1m]))",
+          "legendFormat": "{{method}} {{status_code}}",
+          "refId": "A"
+        }
+      ],
+      "datasource": "Prometheus"
+    }
+  ],
+  "schemaVersion": 26,
+  "version": 1
+}
+  flask-dashboard.json: |
+    {
+  "annotations": { "list": [] },
+  "title": "Flask Frontend Metrics",
+  "panels": [
+    {
+      "type": "graph",
+      "title": "Request Count by Route",
+      "targets": [
+        {
+          "expr": "sum by (method, status, path) (rate(flask_http_request_total[1m]))",
+          "legendFormat": "{{method}} {{status}} {{path}}",
+          "refId": "A"
+        }
+      ],
+      "datasource": "Prometheus"
+    },
+    {
+      "type": "graph",
+      "title": "Request Duration (Average)",
+      "targets": [
+        {
+          "expr": "rate(flask_http_request_duration_seconds_sum[1m]) / rate(flask_http_request_duration_seconds_count[1m])",
+          "legendFormat": "{{path}}",
+          "refId": "B"
+        }
+      ],
+      "datasource": "Prometheus"
+    },
+    {
+      "type": "graph",
+      "title": "Requests by Status Code",
+      "targets": [
+        {
+          "expr": "sum by (status) (rate(flask_http_request_total[1m]))",
+          "legendFormat": "{{status}}",
+          "refId": "C"
+        }
+      ],
+      "datasource": "Prometheus"
+    }
+  ],
+  "schemaVersion": 26,
+  "version": 1
+}

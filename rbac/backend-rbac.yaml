@@ -1,0 +1,29 @@
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: backend-sa
+  namespace: demo-app
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: backend-secret-access
+  namespace: demo-app
+rules:
+  - apiGroups: [""]
+    resources: ["secrets"]
+    verbs: ["get"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: backend-bind
+  namespace: demo-app
+subjects:
+  - kind: ServiceAccount
+    name: backend-sa
+    namespace: demo-app
+roleRef:
+  kind: Role
+  name: backend-secret-access
+  apiGroup: rbac.authorization.k8s.io
