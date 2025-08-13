@@ -18,7 +18,20 @@ data:
       id SERIAL PRIMARY KEY,
       name TEXT NOT NULL
     );
-    INSERT INTO items (name) VALUES ('alpha'), ('beta'), ('gamma');
+
+    CREATE TABLE IF NOT EXISTS football_clubs (
+      id SERIAL PRIMARY KEY,
+      name TEXT NOT NULL,
+      country TEXT NOT NULL
+    );
+
+    INSERT INTO items (name) VALUES
+      ('alpha'), ('beta'), ('gamma');
+
+    INSERT INTO football_clubs (name, country) VALUES
+      ('Manchester United', 'England'),
+      ('Real Madrid', 'Spain'),
+      ('Barcelona', 'Spain');
 ---
 apiVersion: v1
 kind: Secret
@@ -49,6 +62,13 @@ spec:
           image: postgres:15
           ports:
             - containerPort: 5432
+          resources:
+            requests:
+              memory: "256Mi"
+              cpu: "250m"
+            limits:
+              memory: "512Mi"
+              cpu: "500m"
           envFrom:
             - secretRef:
                 name: postgres-secret
