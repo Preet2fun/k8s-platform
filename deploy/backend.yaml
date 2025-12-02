@@ -18,9 +18,16 @@ spec:
       serviceAccountName: backend-sa
       containers:
         - name: backend
-          image: your-dockerhub-username/k8s-backend:latest
+          image: preet2fun/k8s-backend:latest
           ports:
             - containerPort: 8000
+          resources:
+            requests:
+              memory: "128Mi"
+              cpu: "100m"
+            limits:
+              memory: "256Mi"
+              cpu: "200m"
           env:
             - name: DB_HOST
               value: "postgres"
@@ -34,7 +41,7 @@ spec:
                 secretKeyRef:
                   name: postgres-secret
                   key: POSTGRES_USER
-            - name: DB_PASS
+            - name: DB_PASSWORD  # Changed from DB_PASS to match our backend code
               valueFrom:
                 secretKeyRef:
                   name: postgres-secret

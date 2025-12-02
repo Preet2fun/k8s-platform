@@ -18,12 +18,23 @@ spec:
       serviceAccountName: frontend-sa
       containers:
         - name: frontend
-          image: your-dockerhub-username/k8s-frontend:latest
+          image: preet2fun/k8s-frontend:latest
           ports:
             - containerPort: 5000
+          resources:
+            requests:
+              memory: "64Mi"
+              cpu: "100m"
+            limits:
+              memory: "128Mi"
+              cpu: "200m"
           env:
-            - name: BACKEND_URL
-              value: "http://backend:8000/data"
+            - name: BACKEND_BASE_URL
+              value: "http://backend:8000"
+            - name: BACKEND_DATA_URL
+              value: "$(BACKEND_BASE_URL)/data"
+            - name: BACKEND_FOOTBALL_URL
+              value: "$(BACKEND_BASE_URL)/footballClub"
 ---
 apiVersion: v1
 kind: Service

@@ -27,6 +27,17 @@ data:
             regex: (.+);(.+)
             replacement: $1:$2
 ---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: prometheus-data
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 10Gi
+---
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -44,16 +55,31 @@ spec:
       containers:
         - name: prometheus
           image: prom/prometheus:v2.52.0
-          args: ["--config.file=/etc/prometheus/prometheus.yml"]
+          args:
+            - "--config.file=/etc/prometheus/prometheus.yml"
+            - "--storage.tsdb.path=/prometheus"
+            - "--storage.tsdb.retention.time=15d"
           ports:
             - containerPort: 9090
+          resources:
+            requests:
+              memory: "512Mi"
+              cpu: "500m"
+            limits:
+              memory: "1Gi"
+              cpu: "1000m"
           volumeMounts:
             - name: config-volume
               mountPath: /etc/prometheus/
+            - name: prometheus-data
+              mountPath: /prometheus
       volumes:
         - name: config-volume
           configMap:
             name: prometheus-config
+        - name: prometheus-data
+          persistentVolumeClaim:
+            claimName: prometheus-data
 ---
 apiVersion: v1
 kind: Service
