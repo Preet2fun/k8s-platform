@@ -1,3 +1,14 @@
-flask
-requests
-prometheus-flask-exporter
+# Flask web framework
+flask==3.0.3
+
+# HTTP requests library with retry support
+requests==2.32.3
+
+# Prometheus metrics exporter for Flask
+prometheus-flask-exporter==0.23.1
+
+# Production WSGI server
+gunicorn==22.0.0
+
+# Required for retry logic
+urllib3==2.2.2

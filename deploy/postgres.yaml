@@ -8,30 +8,14 @@ spec:
     requests:
       storage: 1Gi
 ---
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: db-init-script
-data:
-  init.sql: |
-    CREATE TABLE IF NOT EXISTS items (
-      id SERIAL PRIMARY KEY,
-      name TEXT NOT NULL
-    );
-
-    CREATE TABLE IF NOT EXISTS football_clubs (
-      id SERIAL PRIMARY KEY,
-      name TEXT NOT NULL,
-      country TEXT NOT NULL
-    );
-
-    INSERT INTO items (name) VALUES
-      ('alpha'), ('beta'), ('gamma');
-
-    INSERT INTO football_clubs (name, country) VALUES
-      ('Manchester United', 'England'),
-      ('Real Madrid', 'Spain'),
-      ('Barcelona', 'Spain');
+# NOTE: This ConfigMap should be created from the source file
+# Run this command BEFORE applying this yaml:
+#   kubectl create configmap db-init-script \
+#     --from-file=init.sql=app/db-init/init.sql \
+#     -n demo-app --dry-run=client -o yaml | kubectl apply -f -
+#
+# This ensures the SQL file in app/db-init/init.sql is the single source of truth
+# The ConfigMap will be automatically created with the contents of that file
 ---
 apiVersion: v1
 kind: Secret
@@ -47,8 +31,11 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: postgres
+  labels:
+    app: postgres
+    version: "15"
 spec:
-  replicas: 1
+  replicas: 1  # Single replica for now (use StatefulSet for HA in production)
   selector:
     matchLabels:
       app: postgres
@@ -56,12 +43,31 @@ spec:
     metadata:
       labels:
         app: postgres
+        version: "15"
     spec:
+      securityContext:
+        fsGroup: 999  # postgres group
+        seccompProfile:
+          type: RuntimeDefault
       containers:
         - name: postgres
-          image: postgres:15
+          image: postgres:15.8  # Specific version
+          imagePullPolicy: IfNotPresent
           ports:
-            - containerPort: 5432
+            - name: postgres
+              containerPort: 5432
+              protocol: TCP
+          securityContext:
+            allowPrivilegeEscalation: false
+            runAsNonRoot: true
+            runAsUser: 999  # postgres user
+            capabilities:
+              drop:
+                - ALL
+              add:
+                - CHOWN
+                - SETUID
+                - SETGID
           resources:
             requests:
               memory: "256Mi"
@@ -72,9 +78,32 @@ spec:
           envFrom:
             - secretRef:
                 name: postgres-secret
+          livenessProbe:
+            exec:
+              command:
+                - /bin/sh
+                - -c
+                - pg_isready -U $POSTGRES_USER -d $POSTGRES_DB
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            timeoutSeconds: 5
+            successThreshold: 1
+            failureThreshold: 3
+          readinessProbe:
+            exec:
+              command:
+                - /bin/sh
+                - -c
+                - pg_isready -U $POSTGRES_USER -d $POSTGRES_DB
+            initialDelaySeconds: 10
+            periodSeconds: 5
+            timeoutSeconds: 3
+            successThreshold: 1
+            failureThreshold: 3
           volumeMounts:
             - name: db-storage
               mountPath: /var/lib/postgresql/data
+              subPath: postgres  # Avoid issues with lost+found
             - name: db-init
               mountPath: /docker-entrypoint-initdb.d
       volumes:

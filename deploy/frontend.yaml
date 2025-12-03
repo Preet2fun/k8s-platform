@@ -2,8 +2,11 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: frontend
+  labels:
+    app: frontend
+    version: v1.0.0
 spec:
-  replicas: 1
+  replicas: 2  # Increased for high availability
   selector:
     matchLabels:
       app: frontend
@@ -11,16 +14,35 @@ spec:
     metadata:
       labels:
         app: frontend
+        version: v1.0.0
       annotations:
         prometheus.io/scrape: "true"
         prometheus.io/port: "5000"
+        prometheus.io/path: "/metrics"
     spec:
       serviceAccountName: frontend-sa
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        fsGroup: 1000
+        seccompProfile:
+          type: RuntimeDefault
       containers:
         - name: frontend
-          image: preet2fun/k8s-frontend:latest
+          image: preet2fun/k8s-frontend:v1.0.0  # Specific version tag
+          imagePullPolicy: IfNotPresent
           ports:
-            - containerPort: 5000
+            - name: http
+              containerPort: 5000
+              protocol: TCP
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            runAsUser: 1000
+            capabilities:
+              drop:
+                - ALL
           resources:
             requests:
               memory: "64Mi"
@@ -35,6 +57,34 @@ spec:
               value: "$(BACKEND_BASE_URL)/data"
             - name: BACKEND_FOOTBALL_URL
               value: "$(BACKEND_BASE_URL)/footballClub"
+            - name: REQUEST_TIMEOUT
+              value: "5"
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: http
+              scheme: HTTP
+            initialDelaySeconds: 10
+            periodSeconds: 15
+            timeoutSeconds: 3
+            successThreshold: 1
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /ready
+              port: http
+              scheme: HTTP
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            timeoutSeconds: 3
+            successThreshold: 1
+            failureThreshold: 3
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: tmp
+          emptyDir: {}
 ---
 apiVersion: v1
 kind: Service

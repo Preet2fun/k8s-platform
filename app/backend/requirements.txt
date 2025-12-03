@@ -1,4 +1,14 @@
-fastapi
-uvicorn
-prometheus-fastapi-instrumentator
-psycopg2-binary  # PostgreSQL database adapter with binary wheels
+# FastAPI web framework
+fastapi==0.115.5
+
+# ASGI server for production
+uvicorn[standard]==0.32.1
+
+# Prometheus metrics for FastAPI
+prometheus-fastapi-instrumentator==7.0.0
+
+# PostgreSQL database adapter with binary wheels
+psycopg2-binary==2.9.10
+
+# Required for health checks
+requests==2.32.3
