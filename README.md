@@ -120,17 +120,20 @@ cd ../frontend && docker build -t preet2fun/k8s-frontend:v1.0.0 .
 docker push preet2fun/k8s-backend:v1.0.0
 docker push preet2fun/k8s-frontend:v1.0.0
 
-# 3. Create database init ConfigMap from source file
+# 3. Create PersistentVolume (local clusters only)
+kubectl apply -f deploy/postgres-pv.yaml
+
+# 4. Create database init ConfigMap from source file
 kubectl create configmap db-init-script \
   --from-file=init.sql=app/db-init/init.sql \
   -n demo-app
 
-# 4. Deploy everything
+# 5. Deploy everything
 kubectl apply -f deploy/ -n demo-app
 kubectl apply -f rbac/ -n demo-app
 kubectl apply -f k8s-network/network-policies/ -n demo-app
 
-# 5. Verify
+# 6. Verify
 kubectl get pods -n demo-app
 ```
 
@@ -246,9 +249,19 @@ docker pull preet2fun/k8s-frontend:v1.0.0
 
 #### 3.1 Deploy Database (PostgreSQL)
 
-**IMPORTANT:** The database initialization ConfigMap must be created from the source SQL file first.
+**IMPORTANT:** For local Kubernetes clusters, you must create a PersistentVolume manually before deploying PostgreSQL.
 
 ```bash
+# Step 0: Create PersistentVolume (local clusters only)
+kubectl apply -f deploy/postgres-pv.yaml
+
+# Verify PV is created and Available
+kubectl get pv postgres-pv
+
+# Expected output:
+# NAME          CAPACITY   ACCESS MODES   RECLAIM POLICY   STATUS      STORAGECLASS   AGE
+# postgres-pv   1Gi        RWO            Retain           Available   manual         5s
+
 # Step 1: Create ConfigMap from SQL file (single source of truth)
 kubectl create configmap db-init-script \
   --from-file=init.sql=app/db-init/init.sql \
@@ -267,11 +280,17 @@ kubectl get pods -n demo-app -w
 ```
 
 **What gets deployed?**
-- PersistentVolumeClaim (1Gi for database storage)
+- PersistentVolume (1Gi hostPath storage - created in Step 0)
+- PersistentVolumeClaim (binds to the PV above)
 - ConfigMap (SQL initialization script - created from app/db-init/init.sql)
 - Secret (database credentials)
 - Deployment (PostgreSQL 15.8)
 - Service (ClusterIP on port 5432)
+
+**Storage Notes:**
+- **Local Cluster:** Uses manual hostPath PV (stored at `/mnt/data/postgres` on worker node)
+- **AWS EKS:** PV is created automatically by EBS CSI driver (no manual PV needed)
+- See `docs/storage_local.md` for detailed storage configuration
 
 **Why create ConfigMap separately?**
 - `app/db-init/init.sql` is the single source of truth
@@ -749,6 +768,55 @@ kubectl logs -l app=postgres -n demo-app
 kubectl exec -it deploy/backend -n demo-app -- \
   python -c "import psycopg2; psycopg2.connect(host='postgres', database='demo', user='demo_user', password='demo_pass')"
 ```
+
+### Storage / PVC Issues
+
+**Symptom:** PostgreSQL pod stuck in Pending with error:
+```
+pod has unbound immediate PersistentVolumeClaims
+0/3 nodes are available: pod has unbound immediate PersistentVolumeClaims
+```
+
+**Cause:** No PersistentVolume available for the PVC to bind to.
+
+**Solution:**
+```bash
+# Check if PV exists and is Available
+kubectl get pv postgres-pv
+
+# If PV doesn't exist, create it:
+kubectl apply -f deploy/postgres-pv.yaml
+
+# Verify PV status
+kubectl get pv postgres-pv
+# Expected: STATUS should be "Available" or "Bound"
+
+# Check PVC status
+kubectl get pvc -n demo-app
+# Expected: STATUS should be "Bound"
+
+# If PVC is still Pending, describe it for details
+kubectl describe pvc postgres-pvc -n demo-app
+
+# Delete and recreate postgres deployment if needed
+kubectl delete deployment postgres -n demo-app
+kubectl apply -f deploy/postgres.yaml -n demo-app
+```
+
+**Permission Issues on Worker Node:**
+
+If postgres pod logs show permission errors:
+```bash
+# SSH to the worker node where postgres is scheduled
+# Find the node:
+kubectl get pod -l app=postgres -n demo-app -o wide
+
+# On the worker node, fix permissions:
+sudo chown -R 999:999 /mnt/data/postgres
+# (999 is the postgres user UID in the container)
+```
+
+**More details:** See `docs/storage_local.md` for comprehensive storage troubleshooting.
 
 ### Network Policy Issues
 
